@@ -3,35 +3,28 @@ package edu.umd.cloud9.ranking;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.PriorityQueue;
-
-import tl.lin.data.array.IntArrayWritable;
-
-import org.clueweb.data.PForDocVector;
 import edu.umd.cloud9.ranking.Score;
 
-public class RankerThread implements Runnable {
+public class DecomRankerThread implements Runnable {
   private Thread t;
   private String threadName;
   private int start, end;
-  private IntArrayWritable[] docvectors;
-  private String[] keys;
   private int [] qtid;
   private float [] idf;
+  private DecomKeyValue[] data;
   private int qlen;
   private int cs;
   private int[] tf = new int[10];
-  private static final PForDocVector DOC = new PForDocVector();
   
-  public RankerThread(String name, int start, int end, IntArrayWritable[] docs, int[] qtid, float[] idf, int qlen, int cs, String[] keys){
+  public DecomRankerThread(String name, int start, int end, DecomKeyValue[] data, int[] qtid, float[] idf, int qlen, int cs){
       threadName = name;
       this.start = start;
       this.end = end;
-      docvectors = docs;
       this.qtid = qtid;
       this.idf = idf;
       this.qlen = qlen;
+      this.data = data;
       this.cs = cs;
-      this.keys = keys;
       System.out.println("Creating " +  threadName );
   }
   
@@ -48,29 +41,31 @@ public class RankerThread implements Runnable {
    // System.out.println("Name: " +  threadName );
     int n = 0;
      for(int i = start; i < end; i++) {
-       PForDocVector.fromIntArrayWritable(docvectors[i], DOC);
        Arrays.fill(tf, 0);
-       for (int termid : DOC.getTermIds()) {
+       for (int termid : data[i].doc) {
          for(int j = 0; j < qlen; j++)
            if(qtid[j] == termid)
              tf[j]++;
        }
        score = 0.0f;
+       if(score <= 0.0f)
+         continue;
        for(int k = 0; k < qlen; k++)
          score += (1.0f * tf[k])/(1.0f + tf[k]) * idf[k];
        if(n < 10) {
-         scoreQueue.add(new Score(keys[i], score));
+         scoreQueue.add(new Score(data[i].key, score));
          n++;
        }
        else {
          if(scoreQueue.peek().score < score) {
            scoreQueue.poll();
-           scoreQueue.add(new Score(keys[i], score));
+           scoreQueue.add(new Score(data[i].key, score));
          }
        }
      }
+     
      // print top 10 results
-     for(int k = 0; k < 10; k++) {
+     for(int k = 0; k < Math.min(scoreQueue.size(), 10); k++) {
        Score t = scoreQueue.poll();
        System.out.println(t.docid + "\t" + t.score + "\t" + threadName);
      }
@@ -92,10 +87,10 @@ public class RankerThread implements Runnable {
      int[] myList = new int[10];
      for(int i = 0; i < 10; i++)
        myList[i] = i;
-   /*  RankerThread R1 = new RankerThread( "Thread-1", 0, 5, myList);
+   /*  DecomRankerThread R1 = new DecomRankerThread( "Thread-1", 0, 5, myList);
      R1.start();
      
-     RankerThread R2 = new RankerThread( "Thread-2", 5, 10, myList);
+     DecomRankerThread R2 = new DecomRankerThread( "Thread-2", 5, 10, myList);
      R2.start(); */
   }   
 }
